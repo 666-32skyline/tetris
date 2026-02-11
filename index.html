@@ -21,8 +21,8 @@ body{
 /* ★ 全体を中央固定 */
 #wrap{
   display:none;
-  gap:20px;
-  transform-origin:top center;
+  justify-content:center;
+  align-items:center;
 }
 
 /* ★ ゲーム＋サイドを横並び固定 */
@@ -444,10 +444,15 @@ function loop(t=0){
 
 function fitScreen(){
   const wrap = document.getElementById("wrapInner");
+
+  const baseWidth = 440;   // 正しい横幅
+  const baseHeight = 600;  // 正しい高さ
+
   const scale = Math.min(
-    window.innerHeight / 700,
-    window.innerWidth / 450
+    window.innerHeight / baseHeight,
+    window.innerWidth / baseWidth
   );
+
   wrap.style.transform = "scale(" + scale + ")";
 }
 
