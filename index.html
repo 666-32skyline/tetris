@@ -44,6 +44,31 @@ canvas{
   margin-top:20px;
 }
 
+#controls{
+  position:fixed;
+  bottom:10px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  gap:10px;
+  z-index:10;
+}
+
+#controls button{
+  font-size:22px;
+  padding:14px 18px;
+  background:#222;
+  color:#fff;
+  border:none;
+  border-radius:10px;
+  opacity:0.85;
+}
+
+@media (min-width: 900px){
+  #controls{display:none;} /* PCでは非表示 */
+}
+
+
 
 </style>
 </head>
@@ -63,6 +88,15 @@ canvas{
     <div>NEXT</div>
     <canvas id="next" width="120" height="120"></canvas>
   </div>
+</div>
+
+<!-- ▼ スマホ操作ボタン -->
+<div id="controls">
+  <button id="btnLeft">◀</button>
+  <button id="btnRotate">⟳</button>
+  <button id="btnRight">▶</button>
+  <button id="btnDown">▼</button>
+  <button id="btnDrop">⤓</button>
 </div>
 
 <script>
@@ -407,6 +441,27 @@ document.getElementById("retryBtn").onclick=()=>{
   reset();
   loop();
 };
+
+// ================= スマホ操作 =================
+function mobileMove(dx){
+  player.pos.x+=dx;
+  if(collide()) player.pos.x-=dx;
+}
+
+function mobileRotate(){
+  const o=player.m;
+  player.m=rotate(player.m);
+  if(collide()) player.m=o;
+  else seRotate();
+}
+
+document.getElementById("btnLeft").ontouchstart=()=>mobileMove(-1);
+document.getElementById("btnRight").ontouchstart=()=>mobileMove(1);
+document.getElementById("btnDown").ontouchstart=()=>soft=true;
+document.getElementById("btnDown").ontouchend=()=>soft=false;
+document.getElementById("btnRotate").ontouchstart=()=>mobileRotate();
+document.getElementById("btnDrop").ontouchstart=()=>hardDrop();
+
 
 </script>
 </body>
