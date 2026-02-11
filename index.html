@@ -15,6 +15,7 @@ body{
   height:100vh;
   font-family:sans-serif;
   flex-direction:column;
+  overflow:hidden;
   }
 #wrap{display:flex;gap:20px; display:none;}
 
@@ -110,7 +111,6 @@ canvas{
 </head>
 <body>
 
-overflow:hidden;
 
 <button id="startBtn">ゲームスタート</button>
 
@@ -120,19 +120,18 @@ overflow:hidden;
 <div id="wrap">
   <canvas id="game" width="300" height="600"></canvas>
   <div id="side">
-    <div>Hi-Score<br><span id="hiscore">0</span></div><br>
-    <div>Score<br><span id="score">0</span></div><br>
-    <div>Level<br><span id="level">1</span></div><br>
-    <div>NEXT</div>
-    <div id="gifBox">
-  <img src="teto.gif" id="sideGif">
-</div>
-<canvas id="next" width="120" height="120"></canvas>
+  <div>Hi-Score<br><span id="hiscore">0</span></div><br>
+  <div>Score<br><span id="score">0</span></div><br>
+  <div>Level<br><span id="level">1</span></div><br>
 
-<!-- ▼ GIFアニメ -->
-<img id="cornerGif" src="teto.gif">
+  <div>NEXT</div>
+  <canvas id="next" width="120" height="120"></canvas>
 
+  <div id="gifBox">
+    <img src="teto.gif" id="sideGif">
   </div>
+</div>
+
 </div>
 
 <!-- ▼ スマホ操作ボタン -->
