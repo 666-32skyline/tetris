@@ -12,19 +12,35 @@ body{
   display:flex;
   justify-content:center;
   align-items:center;
-  height:100vh;
+  min-height:100vh;
   font-family:sans-serif;
   flex-direction:column;
   overflow:hidden;
-  }
-#wrap{display:flex;gap:20px; display:none;}
+}
 
+/* ★ 全体を中央固定 */
+#wrap{
+  display:none;
+  gap:20px;
+  transform-origin:top center;
+}
+
+/* ★ ゲーム＋サイドを横並び固定 */
+#wrapInner{
+  display:flex;
+  gap:20px;
+}
+
+/* キャンバス */
 canvas{
   background:#000;
   border:2px solid #fff;
-  }
+}
 
-#side{width:120px}
+#side{
+  width:120px;
+}
+
 #startBtn{
   padding:15px 30px;
   font-size:24px;
@@ -46,6 +62,7 @@ canvas{
   margin-top:20px;
 }
 
+/* ▼ スマホ操作ボタン */
 #controls{
   position:fixed;
   bottom:10px;
@@ -66,35 +83,15 @@ canvas{
   opacity:0.85;
 }
 
-@media (min-width: 900px){
-  #controls{display:none;} /* PCでは非表示 */
+@media (min-width:900px){
+  #controls{display:none;}
 }
 
-/* ▼▼▼ スマホレイアウト修正 ▼▼▼ */
-@media (max-width: 900px){
-  #wrap{
-    flex-direction:column;
-    align-items:center;
-    gap:10px;
-  }
-
-  #side{
-    width:auto;
-    text-align:center;
-  }
-}
-/* ▼▼▼ スマホ縦フィット ▼▼▼ */
-@media (max-width:900px){
-  #game{
-    height:90vh;
-    width:auto;
-  }
-}
-
+/* GIFエリア */
 #gifBox{
   margin-top:15px;
   width:100%;
-  aspect-ratio:1/1;  /* 正方形にする */
+  aspect-ratio:1/1;
   display:flex;
   justify-content:center;
   align-items:center;
@@ -118,8 +115,11 @@ canvas{
 
 
 <div id="wrap">
-  <canvas id="game" width="300" height="600"></canvas>
-  <div id="side">
+  <div id="wrapInner">
+
+    <canvas id="game" width="300" height="600"></canvas>
+
+    <div id="side">
   <div>Hi-Score<br><span id="hiscore">0</span></div><br>
   <div>Score<br><span id="score">0</span></div><br>
   <div>Level<br><span id="level">1</span></div><br>
@@ -130,6 +130,7 @@ canvas{
   <div id="gifBox">
     <img src="teto.gif" id="sideGif">
   </div>
+</div>
 </div>
 
 </div>
@@ -441,6 +442,17 @@ function loop(t=0){
   animId=requestAnimationFrame(loop);
 }
 
+function fitScreen(){
+  const wrap = document.getElementById("wrapInner");
+  const scale = Math.min(
+    window.innerHeight / 700,
+    window.innerWidth / 450
+  );
+  wrap.style.transform = "scale(" + scale + ")";
+}
+
+window.addEventListener("resize", fitScreen);
+
 
 document.addEventListener("keydown",e=>{
   if(audioCtx.state==="suspended") audioCtx.resume();
@@ -465,6 +477,7 @@ document.getElementById("startBtn").onclick=()=>{
   startBGM();   
   player.next=rnd();
   reset();
+  fitScreen();   // ← 追加
   loop();
 };
 
