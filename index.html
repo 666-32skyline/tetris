@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Tetris Katyusha</title>
+<style>
+body{
+  margin:0;
+  background:#111;
+  color:#fff;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  font-family:sans-serif;
+  flex-direction:column;
+  }
+#wrap{display:flex;gap:20px; display:none;}
+
+canvas{
+  background:#000;
+  border:2px solid #fff;
+  }
+
+#side{width:120px}
+#startBtn{
+  padding:15px 30px;
+  font-size:24px;
+  cursor:pointer;
+  background:#0f0;
+  color:#000;
+  border:none;
+  border-radius:8px;
+}
+
+#retryBtn{
+  padding:12px 26px;
+  font-size:22px;
+  cursor:pointer;
+  background:#fff;
+  color:#000;
+  border:none;
+  border-radius:8px;
+  margin-top:20px;
+}
+
+
+</style>
+</head>
+<body>
+
+<button id="startBtn">ゲームスタート</button>
+
+<button id="retryBtn" style="display:none;">リトライ</button>
+
+
+<div id="wrap">
+  <canvas id="game" width="300" height="600"></canvas>
+  <div id="side">
+    <div>Hi-Score<br><span id="hiscore">0</span></div><br>
+    <div>Score<br><span id="score">0</span></div><br>
+    <div>Level<br><span id="level">1</span></div><br>
+    <div>NEXT</div>
+    <canvas id="next" width="120" height="120"></canvas>
+  </div>
+</div>
+
+<script>
+// ================= Audio =================
+const audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+let loopTimeout=null;
+
+function note(freq,dur,type="triangle",vol=0.05){
+  if(freq===0) return;
+  const o=audioCtx.createOscillator();
+  const g=audioCtx.createGain();
+  o.type=type;
+  o.frequency.value=freq;
+  g.gain.value=vol;
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start();
+  o.stop(audioCtx.currentTime+dur);
+}
+
+// === メロディ ===
+const melody=[
+  [587,3],[659,1],[698,3],[587,1],[698,1],[698,1],[659,1],[587,1],[659,2],[440,2],
+  [659,3],[698,1],[783,3],[659,1],[783,1],[783,1],[698,1],[659,1],[587,3],[0,1],
+  [880,2],[1174,2],[1046,2],[1174,1],[1046,1],[932,1],[932,1],[880,1],[784,1],[880,2],[587,2],
+  [0,1],[932,2],[784,1],[880,3],[698,1],[784,1],[784,1],[698,1],[659,1],[587,3],[0,1],
+  [880,2],[1174,2],[1046,2],[1174,1],[1046,1],[932,1],[932,1],[880,1],[784,1],[880,2],[587,2],
+  [0,1],[932,2],[784,1],[880,3],[698,1],[784,1],[784,1],[698,1],[659,1],[587,3],[0,1]
+];
+
+// === ベース ===
+const bassNotes=[
+  [147,1],[220,1],[110,1],[220,1],[147,1],[220,1],[110,1],[220,1],
+  [147,1],[220,1],[110,1],[220,1],[138,1],[196,1],[110,1],[196,1],
+  [138,1],[196,1],[110,1],[196,1],[138,1],[196,1],[110,1],[196,1],
+  [138,1],[196,1],[110,1],[196,1],[147,1],[220,1],[110,1],[220,1],
+  [174,1],[220,1],[147,1],[233,1],[174,1],[261,1],[131,1],[261,1],
+  [196,1],[293,1],[147,1],[233,1],[147,1],[220,1],[110,1],[220,1],
+  [196,1],[293,1],[147,1],[233,1],[147,1],[220,1],[110,1],[220,1],
+  [138,1],[196,1],[116,1],[138,1],[165,1],[220,1],[110,1],[220,1],
+  [174,1],[220,1],[147,1],[233,1],[174,1],[261,1],[131,1],[261,1],
+  [196,1],[293,1],[147,1],[233,1],[147,1],[220,1],[110,1],[220,1],
+  [196,1],[293,1],[147,1],[233,1],[147,1],[220,1],[110,1],[220,1],
+  [138,1],[196,1],[116,1],[138,1],[165,1],[220,1],[110,1],[220,1]
+];
+
+const bpm=256;
+const beat=64/bpm;
+
+function startBGM(){
+  if(loopTimeout) return;
+
+  function scheduleLoop(){
+//--------- メロディ----------
+    let t=0;
+    melody.forEach(([mf,md])=>{
+      setTimeout(()=>note(mf,md*beat*0.95,"triangle",0.055), t*1000);
+      t+=md*beat;
+    });
+ // --------ベース-----------
+    t=0;
+    const bassRepeats = Math.ceil(melody.reduce((a,[,md])=>a+md,0)/bassNotes.reduce((a,[,bd])=>a+bd,0));
+    const bassSequence = Array.from({length:bassRepeats}).flatMap(()=>bassNotes);
+    bassSequence.forEach(([bf,bd])=>{
+      setTimeout(()=>note(bf,bd*beat,"sawtooth",0.035), t*1000);
+      t+=bd*beat;
+    });
+
+    const melodyDuration = melody.reduce((a,[,md])=>a+md*beat,0)*1000;
+    loopTimeout = setTimeout(scheduleLoop, melodyDuration);
+  }
+
+  scheduleLoop();
+}
+
+// ================= SE =================
+const seRotate=()=>note(700,0.05,"square",0.08);
+const seDrop=()=>note(120,0.12,"sawtooth",0.12);
+const seClear=()=>note(900,0.2,"triangle",0.1);
+const seLevel=()=>{note(600,0.15,"triangle",0.1);note(900,0.15,"triangle",0.1);};
+
+// ================= Game =================
+
+let gameOver=false;
+let animId=null;
+
+const COLS=10,ROWS=20;
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const nextC=document.getElementById("next");
+const nctx=nextC.getContext("2d");
+
+const scoreEl=document.getElementById("score");
+const levelEl=document.getElementById("level");
+
+const hiScoreEl=document.getElementById("hiscore");
+let hiScore=Number(localStorage.getItem("hiScore")||0);
+hiScoreEl.textContent=hiScore;
+
+const COLORS=[null,"#0ff","#00f","#f80","#ff0","#0f0","#f0f","#f00"];
+const SHAPES=[[], [[1,1,1,1]], [[2,0,0],[2,2,2]], [[0,0,3],[3,3,3]], [[4,4],[4,4]], [[0,5,5],[5,5,0]], [[0,6,0],[6,6,6]], [[7,7,0],[0,7,7]]];
+
+const arena=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+const player={pos:{x:0,y:0},m:null,next:null,score:0,level:1,lines:0};
+
+function rnd(){return SHAPES[(Math.random()*7|0)+1];}
+function collide(p=player){return p.m.some((r,y)=>r.some((v,x)=>v&&(arena[y+p.pos.y]?.[x+p.pos.x])!==0));}
+function merge(){player.m.forEach((r,y)=>r.forEach((v,x)=>{if(v) arena[y+player.pos.y][x+player.pos.x]=v;}));}
+function rotate(m){return m[0].map((_,i)=>m.map(r=>r[i]).reverse());}
+function reset(){
+  player.m=player.next||rnd();
+  player.next=rnd();
+  player.pos.y=0;
+  player.pos.x=(COLS/2|0)-(player.m[0].length/2|0);
+
+  if(collide()){
+    gameOver=true;
+    cancelAnimationFrame(animId);
+
+    // ★ ハイスコア保存
+    if(player.score>hiScore){
+      hiScore=player.score;
+      localStorage.setItem("hiScore",hiScore);
+      hiScoreEl.textContent=hiScore;
+    }
+
+    document.getElementById("retryBtn").style.display="block";
+  }
+}
+
+
+// ===== sweepはロジック不変更、後でフック =====
+function sweep(){
+  let c=0;
+  for(let y=ROWS-1;y>=0;y--){
+    if(arena[y].every(v=>v)){
+      arena.splice(y,1);
+      arena.unshift(Array(COLS).fill(0));
+      c++; y++;
+    }
+  }
+  if(c){
+    seClear();
+    player.lines+=c;
+    player.score+=c*100;
+    if(player.lines>=player.level*10){
+      player.level++;
+      seLevel();
+      screenShake=12; // ★FX
+    }
+  }
+}
+
+function hardDrop(){
+  while(!collide()) player.pos.y++;
+  player.pos.y--;
+  merge();
+  seDrop();
+  spawnDropFX(); // ★FX
+  sweep();
+  reset();
+}
+
+function ghostY(){
+  const t={pos:{x:player.pos.x,y:player.pos.y},m:player.m};
+  while(!collide(t)) t.pos.y++;
+  return t.pos.y-1;
+}
+
+// ================= ★FX追加 =================
+const particles=[];
+let screenShake=0;
+
+function spawnParticle(x,y,color){
+  particles.push({
+    x,y,
+    vx:(Math.random()-0.5)*5,
+    vy:(Math.random()-1.5)*5,
+    life:25,
+    color
+  });
+}
+
+function spawnDropFX(){
+  player.m.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){
+      for(let i=0;i<6;i++){
+        spawnParticle(
+          (player.pos.x+x)*30+15,
+          (player.pos.y+y)*30+15,
+          COLORS[v]
+        );
+      }
+    }
+  }));
+}
+
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life/25;
+    ctx.fillStyle=p.color;
+    ctx.fillRect(p.x,p.y,3,3);
+    p.x+=p.vx; p.y+=p.vy;
+    p.vy+=0.3;
+    p.life--;
+  });
+  ctx.globalAlpha=1;
+  for(let i=particles.length-1;i>=0;i--){
+    if(particles[i].life<=0) particles.splice(i,1);
+  }
+}
+
+// ================= draw =================
+function draw(){
+  ctx.save();
+  if(screenShake>0){
+    ctx.translate((Math.random()-0.5)*screenShake,(Math.random()-0.5)*screenShake);
+    screenShake--;
+  }
+
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,0,300,600);
+
+  arena.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){
+      ctx.shadowColor=COLORS[v];
+      ctx.shadowBlur=10;
+      ctx.fillStyle=COLORS[v];
+      ctx.fillRect(x*30,y*30,29,29);
+      ctx.shadowBlur=0;
+    }
+  }));
+
+  const gy=ghostY();
+  ctx.globalAlpha=0.3;
+  player.m.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){
+      ctx.fillStyle=COLORS[v];
+      ctx.fillRect((x+player.pos.x)*30,(y+gy)*30,29,29);
+    }
+  }));
+  ctx.globalAlpha=1;
+
+  player.m.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){
+      ctx.shadowColor=COLORS[v];
+      ctx.shadowBlur=15;
+      ctx.fillStyle=COLORS[v];
+      ctx.fillRect((x+player.pos.x)*30,(y+player.pos.y)*30,29,29);
+      ctx.shadowBlur=0;
+    }
+  }));
+
+  drawParticles();
+  ctx.restore();
+
+  nctx.clearRect(0,0,120,120);
+  player.next.forEach((r,y)=>r.forEach((v,x)=>{
+    if(v){
+      nctx.fillStyle=COLORS[v];
+      nctx.fillRect(x*30,y*30,29,29);
+    }
+  }));
+
+  scoreEl.textContent=player.score;
+  levelEl.textContent=player.level;
+
+  hiScoreEl.textContent=hiScore;
+
+
+if(gameOver){
+  ctx.fillStyle="rgba(0,0,0,0.6)";
+  ctx.fillRect(0,0,300,600);
+  ctx.fillStyle="#fff";
+  ctx.font="bold 36px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("GAME OVER",150,280);
+  ctx.font="18px sans-serif";
+  ctx.fillText("Retry to continue",150,320);
+  }
+}
+
+let last=0,drop=600,soft=false;
+function loop(t=0){
+  if(gameOver) return;
+
+  const speed=soft?50:(drop-(player.level-1)*40);
+  if(t-last>speed){
+    player.pos.y++;
+    if(collide()){
+      player.pos.y--;
+      merge();
+      sweep();
+      reset();
+    }
+    last=t;
+  }
+  draw();
+  animId=requestAnimationFrame(loop);
+}
+
+
+document.addEventListener("keydown",e=>{
+  if(audioCtx.state==="suspended") audioCtx.resume();
+  if(e.key==="ArrowLeft"){player.pos.x--;if(collide())player.pos.x++;}
+  if(e.key==="ArrowRight"){player.pos.x++;if(collide())player.pos.x--;}
+  if(e.key==="ArrowDown") soft=true;
+  if(e.key==="ArrowUp") hardDrop();
+  if(e.key===" "){
+    const o=player.m;
+    player.m=rotate(player.m);
+    if(collide()) player.m=o;
+    else seRotate();
+  }
+});
+document.addEventListener("keyup",e=>{if(e.key==="ArrowDown") soft=false;});
+
+// ================= Start =================
+document.getElementById("startBtn").onclick=()=>{
+  document.getElementById("wrap").style.display="flex";
+  startBtn.style.display="none";
+  audioCtx.resume();
+  startBGM();   
+  player.next=rnd();
+  reset();
+  loop();
+};
+
+document.getElementById("retryBtn").onclick=()=>{
+  arena.forEach(r=>r.fill(0));
+  player.score=0;
+  player.lines=0;
+  player.level=1;
+  last=0;
+  soft=false;
+  screenShake=0;
+  particles.length=0;
+
+  gameOver=false;
+  document.getElementById("retryBtn").style.display="none";
+
+  player.next=rnd();
+  reset();
+  loop();
+};
+
+</script>
+</body>
+</html>
